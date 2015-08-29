@@ -1,6 +1,6 @@
 compileUnitsSoldIntoDataFrame <- function(directory) {
   library(plyr)
-  source("ingestCSVsFromDirectory.R")
+  source("~/Dropbox/Data Science Stuff/rfunctions/ingestCSVsFromDirectory.R")
   
   tmp <- ingestCSVsFromDirectory(directory, 10)
   

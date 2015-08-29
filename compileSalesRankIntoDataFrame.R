@@ -1,6 +1,6 @@
 compileSalesRankIntoDataFrame <- function(directory, hourly = FALSE) {
   library(plyr)
-  source("ingestCSVsFromDirectory.R")
+  source("~/Dropbox/Data Science Stuff/rfunctions/ingestCSVsFromDirectory.R")
   
   tmp <- ingestCSVsFromDirectory(directory)
   
