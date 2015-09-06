@@ -1,103 +1,83 @@
-source("ingestCSVsFromDirectory.R")
-#source("compileUnitsSoldIntoDataFrame.R")
-library(plyr)
 
-## Note, if daily is set to true, you wont' be able to link Sales Ranks and Units Sold, 
-## since Units Sold comes to us in a weekly format. That also means we won't be able 
-## to calculate CCfs of Sales Ranks and Units Sold, nor will we be able to calculate
-## lm fits of the two variables. 
-daily <- FALSE ## if false, weekly
-hourly <- TRUE
+## Note, if method is 'daily' or 'hourly', you won't be able to link Sales Ranks and Units Sold, 
+## since Units Sold comes to us in a weekly format. That also means everything else downstream
+## will be broken too. Needs to be "weekly" for that stuff to work.
+
+method = "hourly" ## weekly, daily, or hourly
+
+releaseDates = list("After the Kiss" = as.POSIXct("2013-08-26 00:00:00"),
+                    "Isn't She Lovely" = as.POSIXct("2013-10-28 00:00:00"), 
+                    "Love the One You're With" = as.POSIXct("2013-12-09 00:00:00"),
+                    "Just One Night" = as.POSIXct("2014-04-22 00:00:00"),
+                    "Only with You" = as.POSIXct("2014-07-29 00:00:00"),
+                    "Broken" = as.POSIXct("2014-09-02 00:00:00"),
+                    "Made for You" = as.POSIXct("2014-10-28 00:00:00"),
+                    "The Trouble with Love" = as.POSIXct("2015-03-03 00:00:00"),
+                    "Crushed" = as.POSIXct("2015-04-14 00:00:00"),
+                    "Frisk Me" = as.POSIXct("2015-07-28 00:00:00"),
+                    "Blurred Lines" = as.POSIXct("2015-08-25 00:00:00"))
+
+releaseDates.df <- ldply(releaseDates, data.frame)
+names(releaseDates.df) <- c("Title", "Date")
+
 
 ###########################################################################################################################
 ##                                                                                                                       ##
 ##                                                      Sales Ranks                                                      ##
 ##                                                                                                                       ##
 ###########################################################################################################################
+source("~/Dropbox/Data Science Stuff/rfunctions/assembleSalesRankData.R")
+salesRanks <- assembleSalesRankData("~/Dropbox/Data Science Stuff/apps/data/salesRank", method = method)
+rm(assembleSalesRankData, ingestCSVsFromDirectory)
 
-salesRanks <- ingestCSVsFromDirectory("data/salesRank")
-tmpNames <- names(salesRanks)
+## Currently broken for method == weekly
+source("~/Dropbox/Data Science Stuff/rfunctions/chartsForListOfSalesRanks.R")
+bookCharts <- chartsForListOfSalesRanks(salesRanks = salesRanks, events = releaseDates)
+rm(chartsForListOfSalesRanks)
 
-## Do some cleaning and polishing...
-salesRanks <- lapply(seq(salesRanks), function(i) {
-  y <- data.frame(salesRanks[[i]])
+##################################
+
+## Testing some ideas here...
+## Select the lowest rank of each day/week
+salesRanks.lowest <- lapply(salesRanks, function(x) {
   
-  ## Take only what we want
-  y <- y[1:(nrow(y)-2), 1:2]
+  ## Get the dataframe in question
+  y <- data.frame(x)
+  
+  ## Cut by day
+  y$day <- as.Date(cut(y$timestamp, breaks = "day"))
+  
+  ## Get the median salesrank of each day
+  names(y)[2] <- "salesrank"
+  y <- ddply(y, "day", summarise, "dailyMedian" = median(salesrank, na.rm = TRUE))
+  
+  ## Cut by week
+  y$week <- as.Date(cut(y$day, breaks = "week", start.on.monday = FALSE)) + 6
+  
+  ## Get the median salesrank of each week
+  y <- ddply(y, "week", summarise, "Weekly Median" = median(dailyMedian, na.rm = TRUE))
   
   ## Change the column names
-  names(y) <- c("timestamp", names(salesRanks)[i])
-  
-  ## Force correct classes for columns
-  y[, names(salesRanks)[i]] <- as.numeric(gsub(",", "", y[, 2]))
-  
-  ## Fix timestamp format
-  if (!hourly) {
-    y$timestamp <- as.Date(y$timestamp)  
-  }
-  if(hourly) {
-    y$timestamp <- as.POSIXct(y$timestamp, tz = "")  
-  }
-  
-  ## Select the lowest rank of each day/week
-  if (daily) {
-    y <- data.frame(tapply(y[, 2], y$timestamp, min, na.rm = TRUE)) ## daily, in case we ever want it
-  } else if (!daily & !hourly) {
-    y$week <- as.Date(cut(y$timestamp, breaks = "week", start.on.monday = FALSE)) + 6
-    y <- data.frame(tapply(y[, 2], y$week, min, na.rm = TRUE))
-  } 
-  
-  ## Fix rownames and bring back timestamp
-  if (!hourly) {
-    y$timestamp <- as.Date(rownames(y))
-  }
-  rownames(y) <- NULL
-  
-  ## Change the column names
-  names(y) <- c(paste(names(salesRanks)[i], "Sales Rank", sep = " "), "timestamp")
-  
-  ## Reorder columns
-  y <- y[c(2, 1)]
-  
-  ## Get rid of Infs
-  y[y == Inf] <- NA
+  names(y) <- c("timestamp", paste(names(salesRanks[[i]][2]), "Weekly Median Sales Rank", sep = " "))
   
   return(y)
 })
-names(salesRanks) <- tmpNames
-#salesRanks.df <- join_all(salesRanks, by = "timestamp", type = "full")
-
 
 ###########################################################################################################################
 ##                                                                                                                       ##
 ##                                                      Units Sold                                                       ##
 ##                                                                                                                       ##
 ###########################################################################################################################
+source("~/Dropbox/Data Science Stuff/rfunctions/assembleUnitsSoldData.R")
+unitsSold <- assembleUnitsSoldData("~/Dropbox/Data Science Stuff/apps/data/unitsSold")
+rm(assembleUnitsSoldData, ingestCSVsFromDirectory)
 
-unitsSold <- ingestCSVsFromDirectory("data/unitsSold", 10)
-tmpNames <- names(unitsSold)
-
-## Do some cleaning and polishing...
 unitsSold <- lapply(seq(unitsSold), function(i) {
   y <- data.frame(unitsSold[[i]])
-  
-  ## Take only what we want
-  y <- y[1:(nrow(y)-1), 1:2]
-  
-  ## Change the column names
-  names(y) <- c("timestamp", names(unitsSold)[i])
-  
-  ## Force correct classes for columns
-  y[, names(unitsSold)[i]] <- as.numeric(gsub(",", "", y[, 2]))
-  y$timestamp <- as.Date(y$timestamp, "%m/%d/%y")
-  
-  ## Change the column names
-  names(y) <- c("timestamp", paste(names(unitsSold)[i], "Units Sold", sep = " "))
-  
+  rownames(y) <- y$timestamp
+  y <- y[-1]
   return(y)
 })
-names(unitsSold) <- tmpNames
-unitsSold.df <- join_all(unitsSold, by = "timestamp", type = "full")
 
 ###########################################################################################################################
 ##                                                                                                                       ##
@@ -105,18 +85,14 @@ unitsSold.df <- join_all(unitsSold, by = "timestamp", type = "full")
 ##                                                                                                                       ##
 ###########################################################################################################################
 
-if (!daily) {
+if (method == "weekly" & length(unitsSold) == length(salesRanks)) {
   joined <- vector(mode = "list", length = length(unitsSold))
   joined <- lapply(seq(joined), function(i) {
     y <- join_all(list(salesRanks[[i]], unitsSold[[i]]),
                   by = "timestamp", type = "full")
-    
     #y <- y[complete.cases(y), ]
-    
     y <- y[order(y$timestamp), ]
-    
     rownames(y) <- NULL
-    
     return(y)
   })
   
