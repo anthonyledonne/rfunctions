@@ -1,4 +1,3 @@
-
 ## Note, if method is 'daily' or 'hourly', you won't be able to link Sales Ranks and Units Sold, 
 ## since Units Sold comes to us in a weekly format. That also means everything else downstream
 ## will be broken too. Needs to be "weekly" for that stuff to work.
@@ -16,10 +15,6 @@ releaseDates = list("After the Kiss" = as.POSIXct("2013-08-26 00:00:00"),
                     "Crushed" = as.POSIXct("2015-04-14 00:00:00"),
                     "Frisk Me" = as.POSIXct("2015-07-28 00:00:00"),
                     "Blurred Lines" = as.POSIXct("2015-08-25 00:00:00"))
-
-releaseDates.df <- ldply(releaseDates, data.frame)
-names(releaseDates.df) <- c("Title", "Date")
-
 
 ###########################################################################################################################
 ##                                                                                                                       ##
